@@ -1,7 +1,10 @@
+// gcc campo-minado.c -o campo-minado.exe -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include "raylib.h"
+#include <unistd.h>
 
 
 void contar_minas(int minas_max, int campo[16][16]) {
@@ -30,39 +33,55 @@ void contar_minas(int minas_max, int campo[16][16]) {
     return;
 }
 
-void gerar_mapa(int minas_max, int campo[16][16]) {
+void gerar_mapa(int row, int col, int minas_max, int campo[16][16], char mascara[16][16]) {
+
+    for (int i = 0; i < row; i++) {
+        for (int j = 0; j < col; j++) {
+            campo[i][j] = 0;
+        }
+    }
+
     int minas_contador = 0;
     srand(time(NULL));
 
+    for (int i = 0; i < row; i++) {
+        for (int j = 0; j < col; j++) {
+            mascara[i][j] = '*';
+        }
+    }
+
     while (minas_contador < minas_max) {
-        int rol = rand() % 16; // pega o resto da divisão do intervalo dado e depois soma com o menor numero 
+        int row = rand() % 16; // pega o resto da divisão do intervalo dado e depois soma com o menor numero 
         int col = rand() % 16;
+
         
-        if (campo[rol][col] == 0) {
-            campo[rol][col] = 9;
+        if (campo[row][col] == 0) {
+            campo[row][col] = 9;
             minas_contador++;
         }
     }
+
     return contar_minas(minas_max, campo);
 }
 
-void mostrar_campo(int row, int col, int campo[16][16]) {
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
-            printf("%d ", campo[i][j]);
-        }
-        printf("\n");
-    }
-}
+// AS FUNCOES ABAIXO FORAM SUBSTITUIDAS PELA INTERFACE
+// void mostrar_campo(int row, int col, int campo[16][16]) {
+//     for (int i = 0; i < row; i++) {
+//         for (int j = 0; j < col; j++) {
+//             printf("%d ", campo[i][j]);
+//         }
+//         printf("\n");
+//     }
+// }
 
-void mostrar_mascara(int row, int col, char mascara[16][16]) {
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
-            printf("%c ", mascara[i][j]);
-        }
-        printf("\n");
-    }
-}
+// void mostrar_mascara(int row, int col, char mascara[16][16]) {
+//     for (int i = 0; i < row; i++) {
+//         for (int j = 0; j < col; j++) {
+//             printf("%c ", mascara[i][j]);
+//         }
+//         printf("\n");
+//     }
+// }
 
 void abrir_mapa(int row, int col, int campo[16][16], char mascara[16][16], int x, int y) {
     // verificar limites da matriz
@@ -95,6 +114,15 @@ void abrir_mapa(int row, int col, int campo[16][16], char mascara[16][16], int x
     return;
 }
 
+void draw_final(char *s, int y, int fontsize, int screenWidth, Color color) {
+    int largura_texto = MeasureText(s, fontsize);
+    int x = (screenWidth - largura_texto) / 2;
+
+    DrawText(s, x, y, fontsize, color);
+    DrawText("Press ENTER", 65, 320, 65, ORANGE);
+    DrawText("to play again", 83, 385, 65, ORANGE);
+}
+
 int main(void) {
 
     int minas_max = 40; // numero de minas
@@ -102,66 +130,44 @@ int main(void) {
     int row = 16; // numero de linhas
     int col = 16; // numero de colunas
 
-    int campo[16][16] = {0}; // tamanho do campo minado preenchido com 0
+    int campo[16][16]; // campo inicializado na funcao gerar_mapa()
 
+    // A GERACAO DA MASCARA ESTA DENTRO DA FUNCAO gerar_mapa()
     char mascara[16][16];
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
-            mascara[i][j] = '*';
-        }
-    }
 
-    gerar_mapa(minas_max, campo);
-
-    // int x, y;
-    // int contador = 0;
-    // do {
-    //     mostrar_mascara(row, col, mascara);
-    //     printf("Valor de x: (linhas 0 - 15) -> ");
-    //     scanf("%d", &x);
-    //     printf("Valor de y: (colunas 0 - 15) -> ");
-    //     scanf("%d", &y);
-
-    //     mascara[16][16] = abrir_mapa(row, col, campo, mascara, x, y); // abrir o mapa para cada 0 encontrado em sequencia
-        
-    //     system("cls");
-    // } while (campo[x][y] != 9);
-
-    // if (contador == minas_max) {
-    //     printf("Você venceu!!!\n");
-    // } 
-    // else {
-    //     printf("Voce perdeu!!!\n");
-    // }
-    // mostrar_campo(row, col, campo);
-
+    gerar_mapa(row, col, minas_max, campo, mascara);
+    
     const int TAMANHO = 32;
     const int ESPACO = 4;
     const int PASSO = TAMANHO + ESPACO;
+    const int PASSO_ALTURA = PASSO * 2;
     const int screenWidth = PASSO * 16; // x
-    const int screenHeight = PASSO * 16; // y
+    const int screenHeight = PASSO * 16 + PASSO_ALTURA; // y
     bool perdeu = false;
     bool ganhou = false;
     int contador_bombas;
     Color cor_quadrado;
+    Color cor_numero;
     
     InitWindow(screenWidth, screenHeight, "Campo Minado");
-
+    
     SetTargetFPS(30);
-
+    
     while (!WindowShouldClose()) {
-        if (IsCursorHidden()) {
-            ShowCursor();
-        }
 
         Vector2 mousePosition = GetMousePosition();
         
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            int i = mousePosition.x / PASSO;
-            int j = mousePosition.y / PASSO;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(ganhou == true || perdeu == true)) {
+            int x = mousePosition.x;
+            int y = mousePosition.y - PASSO_ALTURA;
+            int i = x / PASSO;
+            int j = y / PASSO;
+            printf("Clique - (%d, %d) - [%d][%d]\n", x, y, i, j);
 
             if (campo[i][j] == 9 && mascara[i][j] != '#') {
+                mascara[i][j] = campo[i][j]+'0';
                 perdeu = true;
+                sleep(2.5);
             } else if (mascara[i][j] == '#') {
                 ;
             } else {
@@ -178,19 +184,36 @@ int main(void) {
                 
                 if (contador_bombas == 40) {
                     ganhou = true;
+                    sleep(2.5);
                 }
             }           
         }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-            int i = mousePosition.x / PASSO;
-            int j = mousePosition.y / PASSO;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !(ganhou == true || perdeu == true)) {
+            int x = mousePosition.x;
+            int y = mousePosition.y - PASSO_ALTURA;
+            int i = x / PASSO;
+            int j = y / PASSO;
+            printf("Bandeira - (%d, %d) - [%d][%d]\n", x, y, i, j);
 
             if (mascara[i][j] == '*') {
                 mascara[i][j] = '#';
             } else if (mascara[i][j] == '#') {
                 mascara[i][j] = '*';
             }
+        }
+
+        // REINICIAR O JOGO
+        if (IsKeyPressed(KEY_ENTER) && (ganhou == true || perdeu == true)) {
+            printf("------ FIM DE JOGO ---------\n");
+            ganhou = false;
+            printf("Mudou ganhou para false\n");
+            perdeu = false;
+            // perdeu_trigger = false;
+            printf("Mudou perdeu para false\n");
+            gerar_mapa(row, col, minas_max, campo, mascara);
+            // ShowCursor();
+            printf("-------- GEROU O MAPA ---------\n");
         }
 
         BeginDrawing();
@@ -209,7 +232,7 @@ int main(void) {
                         }
                         DrawRectangle(
                             i * PASSO,
-                            j * PASSO,
+                            j * PASSO + PASSO_ALTURA,
                             TAMANHO,
                             TAMANHO,
                             cor_quadrado
@@ -219,14 +242,30 @@ int main(void) {
                             char valor[2];
                             valor[0] = mascara[i][j];
                             valor[1] = '\0';
-                            DrawText(valor, i * PASSO + 6, j * PASSO + 2, 32, BLACK);
+
+                            int valor_int = mascara[i][j]-'0';
+                            switch (valor_int)
+                            {
+                            case 0: cor_numero = BLACK; break;
+                            case 1: cor_numero = BLUE; break;
+                            case 2: cor_numero = GREEN; break;
+                            case 3: cor_numero = RED; break;
+                            case 4: cor_numero = DARKBLUE; break;
+                            case 5: cor_numero = BROWN; break;
+                            case 6: cor_numero = LIME; break;
+                            case 7: cor_numero = PURPLE; break;
+                            case 8: cor_numero = GRAY; break;
+                            case 9: cor_numero = ORANGE; break;
+                            }
+
+                            DrawText(valor, i * PASSO + 6, j * PASSO + 2 + PASSO_ALTURA, 32, cor_numero);
                         }
                     }
                 }
             } else if (perdeu == true) {
-                DrawText("GAME OVER", 65, 136, 75, RED);
+                draw_final("GAME OVER", 186, 75, screenWidth, RED);
             } else if (ganhou == true) {
-                DrawText("YOU WIN", 65, 136, 75, GREEN);
+                draw_final("YOU WIN", 186, 75, screenWidth, GREEN);
             }
 
         EndDrawing();
