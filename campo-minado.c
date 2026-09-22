@@ -1,5 +1,3 @@
-// gcc campo-minado.c -o campo-minado.exe -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
