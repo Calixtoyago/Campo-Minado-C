@@ -183,7 +183,7 @@ int fontsize(char *string, float proporcao) {
     return fontsize;
 }
 
-void draw_final(char *s, int y, Color color, CampoMinado *jogo) {
+void draw_final(char *s, Color color, CampoMinado *jogo) {
     int fontsize_gameOver = fontsize("GAME OVER", 0.5);
     int fontisize_pressEnter = fontsize("Press ENTER to play again", 0.75);
 
@@ -302,9 +302,9 @@ int main(void) {
                 draw_mapa(&jogo);
 
             } else if (jogo.perdeu == true) {
-                draw_final("GAME OVER", 186, RED, &jogo);
+                draw_final("GAME OVER", RED, &jogo);
             } else if (jogo.ganhou == true) {
-                draw_final("YOU WIN", 186, GREEN, &jogo);
+                draw_final("YOU WIN", GREEN, &jogo);
             }
 
         EndDrawing();
