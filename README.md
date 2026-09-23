@@ -31,7 +31,7 @@ Na pasta do projeto, rode:
 gcc campo-minado.c -o campo-minado.exe -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
 ```
 
-Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques. O mesmo comando está na primeira linha do `campo-minado.c`.
+Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques.
 
 O que cada parte do comando faz:
 
@@ -53,26 +53,39 @@ gcc campo-minado.c -o campo-minado $(pkg-config --cflags --libs raylib)
 
 ## Configurar a dificuldade
 
-A dificuldade é definida pelos `#define` no início do `campo-minado.c`. Para trocar, altere os valores conforme a tabela e compile de novo. O padrão é o Normal.
+A dificuldade é definida pelos `#define` no início do `campo-minado.c`: `COL` é o número de colunas (a largura do tabuleiro), `ROW` é o número de linhas (a altura) e `MINAS_MAX` é a quantidade de minas. Para trocar, altere os valores conforme a tabela e compile de novo. O padrão é o Normal.
 
-| `#define` | Fácil | Normal |
-| --- | --- | --- |
-| `ROW` | 9 | 16 |
-| `COL` | 9 | 16 |
-| `MINAS_MAX` | 10 | 40 |
-| `CONTADOR_BOMBAS` | 81 | 256 |
+| `#define` | Fácil | Normal | Especialista |
+| --- | --- | --- | --- |
+| `COL` | 9 | 16 | 30 |
+| `ROW` | 9 | 16 | 16 |
+| `MINAS_MAX` | 10 | 40 | 99 |
 
-`CONTADOR_BOMBAS` é sempre o total de células (`ROW × COL`). O tamanho da janela e dos textos se ajusta sozinho.
+O total de casas (`CONTADOR_CAMPO`), o tamanho da janela e o tamanho dos textos são calculados a partir desses valores.
 
 ## Como funciona
 
-O estado da partida fica na struct `CampoMinado`, que guarda duas matrizes e o resultado do jogo (`perdeu` e `ganhou`). A matriz `campo` é a verdade do tabuleiro: cada célula guarda quantas minas tem ao redor (0 a 8) ou o valor 9, que representa uma mina. A matriz `mascara` é o que o jogador vê: `*` para célula fechada, `#` para bandeira e o próprio dígito para célula aberta.
+O estado da partida fica na struct `CampoMinado`: as duas matrizes do tabuleiro, o resultado do jogo (`perdeu` e `ganhou`), o contador de bandeiras exibido no topo da tela e o contador de casas ainda fechadas, usado para detectar a vitória. A matriz `campo` é a verdade do tabuleiro: cada célula guarda quantas minas tem ao redor (0 a 8) ou o valor 9, que representa uma mina. A matriz `mascara` é o que o jogador vê: `*` para célula fechada, `#` para bandeira e o próprio dígito para célula aberta.
+
+### Linhas, colunas e pixels
+
+As matrizes seguem a convenção `campo[linha][coluna]`. A linha anda na vertical e vai de 0 a `ROW - 1`; a coluna anda na horizontal e vai de 0 a `COL - 1`. Na tela, a coluna corresponde ao `x` e a linha ao `y`, e a conversão entre os dois acontece só em dois pontos: no desenho (índice para pixel) e nos cliques (pixel para índice).
+
+| | Índice → pixel (desenho) | Pixel → índice (clique) |
+| --- | --- | --- |
+| Horizontal | `x = coluna * PASSO` | `coluna = x / PASSO` |
+| Vertical | `y = linha * PASSO + PASSO_ALTURA` | `linha = (y - PASSO_ALTURA) / PASSO` |
+
+`PASSO` é a distância em pixels entre o início de uma célula e o da próxima, e `PASSO_ALTURA` é a altura da faixa no topo da tela, onde ficam o contador e as mensagens.
+
+### Funções
 
 | Função | O que faz |
 | --- | --- |
 | `gerar_mapa` | Zera o tabuleiro, fecha todas as células, sorteia as minas e calcula os números |
 | `contar_minas` | Para cada mina, incrementa o número das células vizinhas |
 | `abrir_mapa` | Abre uma célula e, se ela não tiver minas ao redor, abre as vizinhas recursivamente, sem passar por bandeiras |
+| `draw_superior` | Desenha o contador de bandeiras no topo da tela |
 | `draw_mapa` | Desenha o tabuleiro, tanto durante a partida quanto revelado na tela final |
 | `draw_final` | Desenha a mensagem de vitória ou derrota junto com o tabuleiro revelado |
 | `fontsize` | Calcula o tamanho da fonte proporcional à largura da janela |
