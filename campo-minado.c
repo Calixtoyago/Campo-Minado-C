@@ -3,30 +3,44 @@
 #include <time.h>
 #include "raylib.h"
 
-/*
-    JOGO           FACIL      NORMAL      
-     ROW             09         16
-     COL             09         16
-   MINAS_MAX         10         40
-CONTADOR_BOMBAS      81         256
+/* 
+    JOGO           FACIL      NORMAL     ESPECIALISTA
+     COL             09         16            30
+     ROW             09         16            16
+   MINAS_MAX         10         40            99
 */
 
-#define ROW 16 // numero de linhas do campo minado
-#define COL 16// numero de colunas do campo minado
+/*
+x da interface é a coluna da matriz
+y da interface é a linha da matriz
+
+// MATRIZ PARA INTERFACE
+x = coluna * PASSO
+y = linha * PASSO + PASSO_ALTURA
+
+// INTERFACE PARA MATRIZ
+coluna = x / PASSO
+linha = (y - PASSO_ALTURA) / PASSO
+*/
+
+#define COL 16 // numero de colunas do campo minado
+#define ROW 16// numero de linhas do campo minado
 #define MINAS_MAX 40 // numero de minas
-#define CONTADOR_BOMBAS (ROW * COL)
+#define CONTADOR_CAMPO (COL * ROW) // total de casas no campo minado
 #define TAMANHO 32
 #define ESPACO 4
 #define PASSO (TAMANHO + ESPACO) // PASSO = TAMANHO + ESPACO  (distancia do inicio de um quadrado do campo ate o proximo)
 #define PASSO_ALTURA (PASSO * 3) // PASSO_ALTURA = PASSO * 3 (espaco acima do campo minado)
-#define SCREEN_WIDTH (PASSO * ROW) // SCREEN_WIDTH = PASSO * ROW (largura da tela)
-#define SCREEN_HEIGHT (PASSO * COL + PASSO_ALTURA) // SCREEN_HEIGHT = PASSO * COL + PASSO_ALTURA (altura da tela)
+#define SCREEN_WIDTH (PASSO * COL) // SCREEN_WIDTH = PASSO * COL (largura da tela)
+#define SCREEN_HEIGHT (PASSO * ROW + PASSO_ALTURA) // SCREEN_HEIGHT = PASSO * ROW + PASSO_ALTURA (altura da tela)
 
 typedef struct campoMinado{
     int campo[ROW][COL];
     char mascara[ROW][COL];
     bool perdeu;
     bool ganhou;
+    int contador_bandeiras;
+    int contador_casas;
 } CampoMinado;
 
 void contar_minas(int campo[ROW][COL]) {
@@ -36,16 +50,16 @@ void contar_minas(int campo[ROW][COL]) {
         {1, -1}, {1, 0}, {1, 1}
     };
     
-    for (int i = 0; i < ROW; i++) {
-        for (int j = 0; j < COL; j++) {
-            if (campo[i][j] == 9) {
-                for (int row = 0; row < 9; row++) {
-                    int ni = i + vizinhos[row][0];
-                    int nj = j + vizinhos[row][1];
+    for (int linha = 0; linha < ROW; linha++) {
+        for (int coluna = 0; coluna < COL; coluna++) {
+            if (campo[linha][coluna] == 9) {
+                for (int v = 0; v < 9; v++) {
+                    int n_linha = linha + vizinhos[v][0];
+                    int n_coluna = coluna + vizinhos[v][1];
 
-                    if ((ni >= 0 && ni < ROW) && (nj >= 0 && nj < COL)) {
-                        if (campo[ni][nj] != 9) {
-                            campo[ni][nj]++;
+                    if ((n_linha >= 0 && n_linha < ROW) && (n_coluna >= 0 && n_coluna < COL)) {
+                        if (campo[n_linha][n_coluna] != 9) {
+                            campo[n_linha][n_coluna]++;
                         }
                     }
                 }
@@ -58,20 +72,20 @@ void contar_minas(int campo[ROW][COL]) {
 void gerar_mapa(CampoMinado *jogo) {
     int minas_contador = 0;
     srand(time(NULL));
-    for (int i = 0; i < ROW; i++) {
-        for (int j = 0; j < COL; j++) {
-            jogo->campo[i][j] = 0;
-            jogo->mascara[i][j] = '*';
+    for (int linha = 0; linha < ROW; linha++) {
+        for (int coluna = 0; coluna < COL; coluna++) {
+            jogo->campo[linha][coluna] = 0;
+            jogo->mascara[linha][coluna] = '*';
         }
     }
 
     while (minas_contador < MINAS_MAX) {
-        int row = rand() % ROW; // pega o resto da divisão do intervalo dado e depois soma com o menor numero 
-        int col = rand() % COL;
+        int linha = rand() % ROW; // pega o resto da divisão do intervalo dado e depois soma com o menor numero 
+        int coluna = rand() % COL;
 
         
-        if (jogo->campo[row][col] == 0) {
-            jogo->campo[row][col] = 9;
+        if (jogo->campo[linha][coluna] == 0) {
+            jogo->campo[linha][coluna] = 9;
             minas_contador++;
         }
     }
@@ -79,52 +93,62 @@ void gerar_mapa(CampoMinado *jogo) {
     return contar_minas(jogo->campo);
 }
 
-void abrir_mapa(CampoMinado *jogo, int x, int y) {
+void abrir_mapa(CampoMinado *jogo, int linha, int coluna) {
     // verificar limites da matriz
-    if ((x < 0 || x >= ROW) || (y < 0 || y >= COL)) {
+    if ((linha < 0 || linha >= ROW) || (coluna < 0 || coluna >= COL)) {
         return;
     }
 
     // se for bandeira nao faz nada
-    if (jogo->mascara[x][y] == '#') {
+    if (jogo->mascara[linha][coluna] == '#') {
         return;
     }
 
     // se for bomba nao faz nada
-    if (jogo->campo[x][y] == 9) {
+    if (jogo->campo[linha][coluna] == 9) {
         return;
     }
 
-    if (jogo->mascara[x][y] == jogo->campo[x][y]+'0') { // verificar se a celula ja foi mostrada pra evitar loop
+    if (jogo->mascara[linha][coluna] == jogo->campo[linha][coluna]+'0') { // verificar se a celula ja foi mostrada pra evitar loop
         return;
     } else {
-        jogo->mascara[x][y] = jogo->campo[x][y] + '0'; // toda celula que chegar aqui nao sera 9 nem ja tera sido mostrada
-        if (jogo->campo[x][y] == 0) { 
-            jogo->mascara[x][y] = jogo->campo[x][y] + '0';
-            abrir_mapa(jogo, x-1, y-1);
-            abrir_mapa(jogo, x-1, y);
-            abrir_mapa(jogo, x-1, y+1);
-            abrir_mapa(jogo, x, y-1);
-            abrir_mapa(jogo, x, y+1);
-            abrir_mapa(jogo, x+1, y-1);
-            abrir_mapa(jogo, x+1, y);
-            abrir_mapa(jogo, x+1, y+1);
+        jogo->mascara[linha][coluna] = jogo->campo[linha][coluna] + '0'; // toda celula que chegar aqui nao sera 9 nem ja tera sido mostrada
+        if (jogo->campo[linha][coluna] == 0) { 
+            jogo->mascara[linha][coluna] = jogo->campo[linha][coluna] + '0';
+            abrir_mapa(jogo, linha-1, coluna-1);
+            abrir_mapa(jogo, linha-1, coluna);
+            abrir_mapa(jogo, linha-1, coluna+1);
+            abrir_mapa(jogo, linha, coluna-1);
+            abrir_mapa(jogo, linha, coluna+1);
+            abrir_mapa(jogo, linha+1, coluna-1);
+            abrir_mapa(jogo, linha+1, coluna);
+            abrir_mapa(jogo, linha+1, coluna+1);
         }
     }
 
     return;
 }
 
+void draw_superior(CampoMinado *jogo) {
+    char bandeiras_string[2];
+    snprintf(bandeiras_string, 6, "%d", jogo->contador_bandeiras);
+    
+    DrawText(bandeiras_string, 36, 36, 50, RED);
+}
 
 void draw_mapa(CampoMinado *jogo) {
     Color color;
-    for (int i = 0; i < ROW; i++) {
-        for (int j = 0; j < COL; j++) {
+    int x, y;
+    for (int linha = 0; linha < ROW; linha++) {
+        for (int coluna = 0; coluna < COL; coluna++) {
+            x = coluna * PASSO;
+            y = linha * PASSO + PASSO_ALTURA;
+
             if (jogo->ganhou == false && jogo->perdeu == false) { // se o jogo ainda estiver rolando
 
-                if (jogo->mascara[i][j] != '*' && jogo->mascara[i][j] != '#') {
+                if (jogo->mascara[linha][coluna] != '*' && jogo->mascara[linha][coluna] != '#') {
                     color = WHITE;
-                } else if (jogo->mascara[i][j] == '#') {
+                } else if (jogo->mascara[linha][coluna] == '#') {
                     color = RED;
                 } else { // campo ainda encoberto
                     color = GRAY;
@@ -132,28 +156,28 @@ void draw_mapa(CampoMinado *jogo) {
 
             } else { // se o jogo ja terminou com ganhou ou perdeu
 
-                if (jogo->campo[i][j] == 9) {
+                if (jogo->campo[linha][coluna] == 9) {
                     color = RED;
                 } else {
                     color = WHITE;
                 }
-                jogo->mascara[i][j] = jogo->campo[i][j]+'0';
+                jogo->mascara[linha][coluna] = jogo->campo[linha][coluna]+'0';
                 
             }
 
             DrawRectangle(
-                i * PASSO,
-                j * PASSO + PASSO_ALTURA,
+                x,
+                y,
                 32,
                 32,
                 color
             );
 
             char valor[2];
-            valor[0] = jogo->mascara[i][j];
+            valor[0] = jogo->mascara[linha][coluna];
             valor[1] = '\0';
     
-            int valor_int = jogo->mascara[i][j]-'0';
+            int valor_int = jogo->mascara[linha][coluna]-'0';
             switch (valor_int)
             {
             case 0: color = BLACK; break;
@@ -167,8 +191,8 @@ void draw_mapa(CampoMinado *jogo) {
             case 8: color = GRAY; break;
             case 9: color = RED; break;
             }
-    
-            DrawText(valor, i * PASSO + 6, j * PASSO + 2 + PASSO_ALTURA, 32, color);
+            
+            DrawText(valor, x + 6, y + 2, 32, color);
         }
     }
 }
@@ -203,11 +227,11 @@ int main(void) {
     CampoMinado jogo;
     jogo.perdeu = false;
     jogo.ganhou = false;
+    jogo.contador_bandeiras = MINAS_MAX;
+    jogo.contador_casas = CONTADOR_CAMPO;
 
     gerar_mapa(&jogo);
 
-    int contador_bandeiras = MINAS_MAX;
-    int contador_bombas;
     Color cor_quadrado;
     Color cor_numero;
 
@@ -224,28 +248,28 @@ int main(void) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(jogo.ganhou == true || jogo.perdeu == true)) {
             int x = mousePosition.x;
             int y = mousePosition.y - PASSO_ALTURA;
-            int i = x / PASSO;
-            int j = y / PASSO;
-            printf("Clique - (%d, %d) - [%d][%d]\n", x, y, i, j);
+            int coluna = x / PASSO;
+            int linha = y / PASSO;
+            printf("Clique - (%d, %d) - [%d][%d]\n", x, y, linha, coluna);
 
-            if (jogo.campo[i][j] == 9 && jogo.mascara[i][j] != '#') {
-                jogo.mascara[i][j] = jogo.campo[i][j]+'0';
+            if (jogo.campo[linha][coluna] == 9 && jogo.mascara[linha][coluna] != '#') {
+                jogo.mascara[linha][coluna] = jogo.campo[linha][coluna]+'0';
                 jogo.perdeu = true;
-            } else if (jogo.mascara[i][j] == '#') {
+            } else if (jogo.mascara[linha][coluna] == '#') {
                 ;
             } else {
-                contador_bombas = CONTADOR_BOMBAS;
-                abrir_mapa(&jogo, i, j);
+                jogo.contador_casas = CONTADOR_CAMPO;
+                abrir_mapa(&jogo, linha, coluna);
 
-                for (int i = 0; i < ROW; i++) {
-                    for (int j = 0; j < COL; j++) {
-                        if (jogo.mascara[i][j] != '*' && jogo.mascara[i][j] != '#' ) {
-                            contador_bombas -= 1;
+                for (int linha = 0; linha < ROW; linha++) {
+                    for (int coluna = 0; coluna < COL; coluna++) {
+                        if (jogo.mascara[linha][coluna] != '*' && jogo.mascara[linha][coluna] != '#' ) {
+                            jogo.contador_casas -= 1;
                         }
                     }
                 }
                 
-                if (contador_bombas == MINAS_MAX) {
+                if (jogo.contador_casas == MINAS_MAX) {
                     jogo.ganhou = true;
                 }
             }           
@@ -258,22 +282,22 @@ int main(void) {
 
             if (y > PASSO_ALTURA) {
                 y = y - PASSO_ALTURA;
-                int i = x / PASSO;
-                int j = y / PASSO;
-                printf("Bandeira - (%d, %d) - [%d][%d]\n", x, y, i, j);
+                int coluna = x / PASSO;
+                int linha = y / PASSO;
+                // printf("Bandeira - (%d, %d) - [%d][%d]\n", x, y, i, j);
     
-                if (jogo.mascara[i][j] == '*') {
-                    jogo.mascara[i][j] = '#';
-                    contador_bandeiras--;
+                if (jogo.mascara[linha][coluna] == '*') {
+                    jogo.mascara[linha][coluna] = '#';
+                    jogo.contador_bandeiras--;
                     // VERIFICADOR PARA contador_bandeiras NAO PASSAR PARA NEGATIVO (opcional)
                     // if (contador_bandeiras <= 40 && contador_bandeiras > 0) {
                     //     contador_bandeiras--;
-                    //     mascara[i][j] = '#';
+                    //     mascara[linha][coluna] = '#';
                     // }
                     
-                } else if (jogo.mascara[i][j] == '#') {
-                    jogo.mascara[i][j] = '*';
-                    contador_bandeiras++;
+                } else if (jogo.mascara[linha][coluna] == '#') {
+                    jogo.mascara[linha][coluna] = '*';
+                    jogo.contador_bandeiras++;
                 }
             } 
         }
@@ -282,7 +306,7 @@ int main(void) {
         if (IsKeyPressed(KEY_ENTER) && (jogo.ganhou == true || jogo.perdeu == true)) {
             jogo.ganhou = false;
             jogo.perdeu = false;
-            contador_bandeiras = MINAS_MAX;
+            jogo.contador_bandeiras = MINAS_MAX;
 
             gerar_mapa(&jogo);
         }
@@ -293,11 +317,7 @@ int main(void) {
             
             // CRIAR O CAMPO MINADO NA INTERFACE
             if (jogo.perdeu == false && jogo.ganhou == false) {
-                char bandeiras_string[2];
-                snprintf(bandeiras_string, 6, "%d", contador_bandeiras);
-                
-                DrawText(bandeiras_string, 36, 36, 50, RED);
-                cor_quadrado = RED;
+                draw_superior(&jogo);
 
                 draw_mapa(&jogo);
 
