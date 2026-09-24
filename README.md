@@ -1,6 +1,6 @@
 # Campo Minado
 
-Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras, com um contador no topo da tela. Ao fim da partida, o tabuleiro inteiro é revelado.
+Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado.
 
 ## Como jogar
 
@@ -12,6 +12,8 @@ Implementação do clássico Campo Minado em C, com interface gráfica feita com
 | Fechar o jogo | ESC ou o botão de fechar da janela |
 
 Cada número indica quantas minas existem nas oito células ao redor. A partida termina em vitória quando todas as células sem mina são abertas, e em derrota quando uma mina é aberta. As bandeiras servem só para marcação: não é preciso marcar as minas para vencer.
+
+O cronômetro começa no primeiro clique esquerdo, para quando a partida termina e vai até 999 segundos, como no clássico.
 
 ## Requisitos
 
@@ -31,13 +33,13 @@ Na pasta do projeto, rode:
 gcc campo-minado.c -o campo-minado.exe -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
 ```
 
-Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques.
+Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques. Feche o jogo antes de compilar de novo: no Windows, um executável aberto não pode ser sobrescrito, e a compilação falha.
 
 O que cada parte do comando faz:
 
 - `-I` e `-L` apontam para os headers e a biblioteca da raylib. Se ela estiver instalada em outro lugar, ajuste esses caminhos.
 - `-lraylib` liga o programa à raylib, e `-lopengl32 -lgdi32 -lwinmm` são bibliotecas do Windows que ela usa.
-- `-mwindows` abre o jogo sem a janela do console. Remova essa opção se quiser ver as mensagens de depuração que o programa imprime.
+- `-mwindows` abre o jogo sem a janela do console.
 
 ### Linux e macOS (não testado)
 
@@ -65,7 +67,7 @@ O total de casas (`CONTADOR_CAMPO`), o tamanho da janela e o tamanho dos textos 
 
 ## Como funciona
 
-O estado da partida fica na struct `CampoMinado`: as duas matrizes do tabuleiro, o resultado do jogo (`perdeu` e `ganhou`), o contador de bandeiras exibido no topo da tela e o contador de casas ainda fechadas, usado para detectar a vitória. A matriz `campo` é a verdade do tabuleiro: cada célula guarda quantas minas tem ao redor (0 a 8) ou o valor 9, que representa uma mina. A matriz `mascara` é o que o jogador vê: `*` para célula fechada, `#` para bandeira e o próprio dígito para célula aberta.
+O estado da partida fica na struct `CampoMinado`: as duas matrizes do tabuleiro, o resultado do jogo (`perdeu` e `ganhou`), o contador de bandeiras, o contador de casas ainda fechadas, usado para detectar a vitória, e os dados do cronômetro (`inicio` e `segundos`). A matriz `campo` é a verdade do tabuleiro: cada célula guarda quantas minas tem ao redor (0 a 8) ou o valor 9, que representa uma mina. A matriz `mascara` é o que o jogador vê: `*` para célula fechada, `#` para bandeira e o próprio dígito para célula aberta.
 
 ### Linhas, colunas e pixels
 
@@ -76,7 +78,11 @@ As matrizes seguem a convenção `campo[linha][coluna]`. A linha anda na vertica
 | Horizontal | `x = coluna * PASSO` | `coluna = x / PASSO` |
 | Vertical | `y = linha * PASSO + PASSO_ALTURA` | `linha = (y - PASSO_ALTURA) / PASSO` |
 
-`PASSO` é a distância em pixels entre o início de uma célula e o da próxima, e `PASSO_ALTURA` é a altura da faixa no topo da tela, onde ficam o contador e as mensagens.
+`PASSO` é a distância em pixels entre o início de uma célula e o da próxima, e `PASSO_ALTURA` é a altura da faixa no topo da tela, onde ficam o contador, o cronômetro e as mensagens.
+
+### Cronômetro
+
+O cronômetro usa o `GetTime()` da raylib, que devolve os segundos desde a abertura da janela. No primeiro clique esquerdo, esse valor é guardado em `inicio`; antes disso, `inicio` vale `-1`, que indica que o tempo ainda não começou. A cada quadro, enquanto a partida está em andamento, `segundos` recebe a diferença entre o tempo atual e `inicio`, limitada a 999. Como o cálculo só acontece durante a partida, o tempo congela sozinho ao ganhar ou perder, e o ENTER volta os dois campos ao estado inicial.
 
 ### Funções
 
@@ -85,9 +91,9 @@ As matrizes seguem a convenção `campo[linha][coluna]`. A linha anda na vertica
 | `gerar_mapa` | Zera o tabuleiro, fecha todas as células, sorteia as minas e calcula os números |
 | `contar_minas` | Para cada mina, incrementa o número das células vizinhas |
 | `abrir_mapa` | Abre uma célula e, se ela não tiver minas ao redor, abre as vizinhas recursivamente, sem passar por bandeiras |
-| `draw_superior` | Desenha o contador de bandeiras no topo da tela |
+| `draw_superior` | Desenha o contador de bandeiras e o cronômetro no topo da tela |
 | `draw_mapa` | Desenha o tabuleiro, tanto durante a partida quanto revelado na tela final |
 | `draw_final` | Desenha a mensagem de vitória ou derrota junto com o tabuleiro revelado |
 | `fontsize` | Calcula o tamanho da fonte proporcional à largura da janela |
 
-O `main` segue o padrão de game loop da raylib: a cada quadro, lê o mouse e o teclado, atualiza o estado do jogo e redesenha a tela.
+O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo e redesenha a tela.

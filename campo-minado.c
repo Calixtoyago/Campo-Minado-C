@@ -25,7 +25,7 @@ linha = (y - PASSO_ALTURA) / PASSO
 
 #define COL 16 // numero de colunas do campo minado
 #define ROW 16// numero de linhas do campo minado
-#define MINAS_MAX 40 // numero de minas
+#define MINAS_MAX 10 // numero de minas
 #define CONTADOR_CAMPO (COL * ROW) // total de casas no campo minado
 #define TAMANHO 32
 #define ESPACO 4
@@ -41,6 +41,8 @@ typedef struct campoMinado{
     bool ganhou;
     int contador_bandeiras;
     int contador_casas;
+    double inicio;
+    int segundos;
 } CampoMinado;
 
 void contar_minas(int campo[ROW][COL]) {
@@ -130,10 +132,14 @@ void abrir_mapa(CampoMinado *jogo, int linha, int coluna) {
 }
 
 void draw_superior(CampoMinado *jogo) {
-    char bandeiras_string[2];
-    snprintf(bandeiras_string, 6, "%d", jogo->contador_bandeiras);
+    char bandeiras_string[4];
+    snprintf(bandeiras_string, sizeof(bandeiras_string), "%d", jogo->contador_bandeiras);
+
+    char segundos_string[4];
+    snprintf(segundos_string, sizeof(segundos_string), "%d", jogo->segundos);
     
     DrawText(bandeiras_string, 36, 36, 50, RED);
+    DrawText(segundos_string, SCREEN_WIDTH-75, 36, 50, RED);
 }
 
 void draw_mapa(CampoMinado *jogo) {
@@ -229,6 +235,8 @@ int main(void) {
     jogo.ganhou = false;
     jogo.contador_bandeiras = MINAS_MAX;
     jogo.contador_casas = CONTADOR_CAMPO;
+    jogo.inicio = -1;
+    jogo.segundos = 0;
 
     gerar_mapa(&jogo);
 
@@ -241,16 +249,26 @@ int main(void) {
     
     while (!WindowShouldClose()) {
 
+        if ((jogo.inicio >= 0) && (jogo.perdeu == false) && (jogo.ganhou == false)) {
+            jogo.segundos = (int)(GetTime() - jogo.inicio);
+            if (jogo.segundos > 999) {
+                jogo.segundos = 999;
+            }
+        }
+
         Vector2 mousePosition = GetMousePosition();
         
         // PROCESSO DO JOGO
         // clicar para abrir o mapa e verificador de vitoria e derrota
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(jogo.ganhou == true || jogo.perdeu == true)) {
+            if (jogo.inicio < 0) {
+                jogo.inicio = GetTime();
+            }
+
             int x = mousePosition.x;
             int y = mousePosition.y - PASSO_ALTURA;
             int coluna = x / PASSO;
             int linha = y / PASSO;
-            printf("Clique - (%d, %d) - [%d][%d]\n", x, y, linha, coluna);
 
             if (jogo.campo[linha][coluna] == 9 && jogo.mascara[linha][coluna] != '#') {
                 jogo.mascara[linha][coluna] = jogo.campo[linha][coluna]+'0';
@@ -307,13 +325,15 @@ int main(void) {
             jogo.ganhou = false;
             jogo.perdeu = false;
             jogo.contador_bandeiras = MINAS_MAX;
+            jogo.inicio = -1;
+            jogo.segundos = 0;
 
             gerar_mapa(&jogo);
         }
 
         BeginDrawing();
 
-            ClearBackground(BLACK); 
+            ClearBackground(BLACK);
             
             // CRIAR O CAMPO MINADO NA INTERFACE
             if (jogo.perdeu == false && jogo.ganhou == false) {
