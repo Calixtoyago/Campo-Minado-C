@@ -4,5 +4,6 @@
 
 # Bancos de dados gerados pelo jogo
 *.db
+*sql
 
 \.vscode

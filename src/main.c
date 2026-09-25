@@ -244,6 +244,10 @@ int main(void) {
     if (!db)
         return 1;
 
+    Registro ultimo;
+    Registro ranking[10];
+    int total;
+
     CampoMinado jogo;
     jogo.perdeu = false;
     jogo.ganhou = false;
@@ -373,7 +377,18 @@ int main(void) {
                 if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1)
                     printf("ERRO - Nao inseriu no banco\n");
                 tempo_salvo = true;
-            }
+
+                total = buscar_tempos(db, ranking);
+                printf("--- TOP 10 tempos ---\n");
+                for (int i = 0; i < total; i++){
+                    printf("%d. %ds - %s\n", i + 1, ranking[i].tempo, ranking[i].data);
+                }
+
+                if (mostrar_ultimo_tempo(db, &ultimo) == 1)
+                    printf("\nJogo atual: %ds em %s\n", ultimo.tempo, ultimo.data);
+                else
+                    printf("Não foi possível buscar o jogo atual\n");
+                }
 
         EndDrawing();
     }

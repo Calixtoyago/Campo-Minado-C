@@ -1,6 +1,6 @@
 # Campo Minado
 
-Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado e o tempo é salvo em um banco de dados [SQLite](https://www.sqlite.org/).
+Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado, o tempo é salvo em um banco de dados [SQLite](https://www.sqlite.org/) e o ranking das melhores vitórias é exibido no terminal.
 
 ## Como jogar
 
@@ -19,7 +19,22 @@ O cronômetro começa no primeiro clique esquerdo, para quando a partida termina
 
 Ao fim de cada partida, vencida ou perdida, o jogo grava no arquivo `tempos.db` o tempo em segundos, o resultado e a data e hora. O arquivo é criado automaticamente na primeira execução, na pasta de onde o jogo foi aberto, e não vai para o repositório: cada jogador tem o seu.
 
-**Por enquanto, o jogo só salva os tempos.** A opção de visualizar os tempos salvos dentro do jogo virá em uma próxima versão. Até lá, dá para consultar o arquivo com qualquer programa que abra bancos SQLite, como o [DB Browser for SQLite](https://sqlitebrowser.org/).
+Logo depois de salvar, o jogo imprime no terminal:
+
+- o **top 10** dos menores tempos entre as partidas vencidas, com a data de cada uma;
+- o **tempo da partida que acabou de terminar**, vencida ou perdida.
+
+Exemplo de saída:
+
+```
+--- TOP 10 tempos ---
+1. 60s - 2026-09-25 14:16:40
+2. 95s - 2026-09-25 14:20:12
+
+Jogo atual: 30s em 2026-09-25 14:22:05
+```
+
+**Por enquanto, os tempos são mostrados apenas no terminal.** A exibição do ranking dentro da janela do jogo virá em uma próxima versão. Por isso, o jogo precisa ser aberto pelo terminal e compilado sem a opção `-mwindows`, como explicado em [Compilar e executar](#compilar-e-executar). Também dá para consultar o `tempos.db` com qualquer programa que abra bancos SQLite, como o [DB Browser for SQLite](https://sqlitebrowser.org/).
 
 A tabela `tempos` tem esta estrutura:
 
@@ -71,12 +86,18 @@ Isso leva alguns segundos, porque o `sqlite3.c` é grande. O resultado é o `sql
 Depois, compile o jogo. Os dois comandos devem ser rodados na raiz do projeto, porque os caminhos são relativos a ela:
 
 ```shell
-gcc src/main.c src/banco.c lib/sqlite3/sqlite3.o -o campo-minado.exe -Ilib/sqlite3 -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
+gcc src/main.c src/banco.c lib/sqlite3/sqlite3.o -o campo-minado.exe -Ilib/sqlite3 -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm
 ```
 
 Essa é a etapa que se repete a cada alteração no código. Ela é rápida porque só compila os arquivos do jogo e aproveita o SQLite já compilado.
 
-Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques. Feche o jogo antes de compilar de novo: no Windows, um executável aberto não pode ser sobrescrito, e a compilação falha.
+Depois, execute o jogo **pelo terminal**, na raiz do projeto, para ver os tempos impressos:
+
+```shell
+./campo-minado.exe
+```
+
+Aberto com dois cliques, o jogo funciona e salva os tempos normalmente, mas a janela do console fecha junto com ele, e não dá para acompanhar o ranking. Junto com os tempos, o terminal também mostra as mensagens de `INFO` da raylib. Feche o jogo antes de compilar de novo: no Windows, um executável aberto não pode ser sobrescrito, e a compilação falha.
 
 O que cada parte do comando faz:
 
@@ -84,7 +105,7 @@ O que cada parte do comando faz:
 - `-Ilib/sqlite3` indica onde está o `sqlite3.h`.
 - `-I` e `-L` com `C:/raylib/raylib/src` apontam para os headers e a biblioteca da raylib. Se ela estiver instalada em outro lugar, ajuste esses caminhos.
 - `-lraylib` liga o programa à raylib, e `-lopengl32 -lgdi32 -lwinmm` são bibliotecas do Windows que ela usa.
-- `-mwindows` abre o jogo sem a janela do console. Como as mensagens de erro do banco são impressas no console, remova essa opção quando precisar investigar um problema.
+- O comando **não** usa a opção `-mwindows`, que abriria o jogo sem console. Enquanto os tempos forem exibidos só no terminal, ela esconderia o ranking e as mensagens de erro do banco. Quando o ranking passar a ser mostrado na janela do jogo, ela poderá voltar ao comando.
 
 ### Linux e macOS (não testado)
 
@@ -133,7 +154,9 @@ O cronômetro usa o `GetTime()` da raylib, que devolve os segundos desde a abert
 
 O acesso ao banco fica isolado no módulo `banco.c`, e o `main.c` só conhece as funções declaradas no `banco.h`, sem chamar o SQLite diretamente. A conexão é aberta uma vez no início do `main`, antes da janela, e fechada no final, depois do `CloseWindow()`.
 
-Para que cada partida seja gravada uma única vez, o `main` usa a variável `tempo_salvo`. Quando a partida termina e ela ainda é `false`, o tempo é inserido e ela passa a ser `true`. O ENTER volta a variável para `false`, liberando o salvamento da próxima partida. Sem esse controle, o game loop tentaria salvar o mesmo tempo a cada quadro.
+Para que cada partida seja gravada uma única vez, o `main` usa a variável `tempo_salvo`. Quando a partida termina e ela ainda é `false`, o tempo é inserido, o ranking e a partida atual são buscados e impressos no terminal, e ela passa a ser `true`. O ENTER volta a variável para `false`, liberando o salvamento da próxima partida. Sem esse controle, o game loop tentaria salvar o mesmo tempo e imprimir o ranking a cada quadro.
+
+As buscas guardam os resultados na struct `Registro`, declarada no `banco.h`, com o tempo e a data de uma partida. O ranking é um array `Registro ranking[10]` preenchido pela `buscar_tempos`, e a partida atual é um único `Registro` preenchido pela `mostrar_ultimo_tempo`. Os dois ficam declarados no `main`, e as funções recebem o endereço deles para preenchê-los.
 
 ### Funções
 
@@ -148,6 +171,8 @@ Para que cada partida seja gravada uma única vez, o `main` usa a variável `tem
 | `fontsize` | `main.c` | Calcula o tamanho da fonte proporcional à largura da janela |
 | `banco_abrir` | `banco.c` | Abre ou cria o `tempos.db` e cria a tabela `tempos` se ela não existir. Retorna `NULL` em caso de erro |
 | `inserir_tempo` | `banco.c` | Grava o tempo e o resultado de uma partida. Retorna o `id` da linha criada, ou `-1` em caso de erro |
+| `buscar_tempos` | `banco.c` | Preenche o array recebido com as 10 vitórias mais rápidas. Retorna quantas encontrou, ou `-1` em caso de erro |
+| `mostrar_ultimo_tempo` | `banco.c` | Preenche o `Registro` recebido com a última partida salva. Retorna `1` se encontrou, `0` se não há partidas salvas, ou `-1` em caso de erro |
 | `banco_fechar` | `banco.c` | Fecha a conexão com o banco |
 
-O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo, salva o tempo quando a partida termina e redesenha a tela.
+O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo, salva o tempo e imprime o ranking quando a partida termina e redesenha a tela.
