@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "raylib.h"
+#include "banco.h"
 
 /* 
     JOGO           FACIL      NORMAL     ESPECIALISTA
@@ -25,7 +26,7 @@ linha = (y - PASSO_ALTURA) / PASSO
 
 #define COL 16 // numero de colunas do campo minado
 #define ROW 16// numero de linhas do campo minado
-#define MINAS_MAX 10 // numero de minas
+#define MINAS_MAX 40 // numero de minas
 #define CONTADOR_CAMPO (COL * ROW) // total de casas no campo minado
 #define TAMANHO 32
 #define ESPACO 4
@@ -44,6 +45,14 @@ typedef struct campoMinado{
     double inicio;
     int segundos;
 } CampoMinado;
+
+void contar_minas(int campo[16][16]);
+void gerar_mapa(CampoMinado *jogo);
+void abrir_mapa(CampoMinado *jogo, int linha, int coluna);
+void draw_superior(CampoMinado *jogo);
+int fontsize(char *string, float proporcao);
+void draw_final(char *s, Color color, CampoMinado *jogo);
+int main(void);
 
 void contar_minas(int campo[ROW][COL]) {
     int vizinhos[9][2] = {
@@ -230,6 +239,11 @@ void draw_final(char *s, Color color, CampoMinado *jogo) {
 }
 
 int main(void) {
+    char *caminho = "tempos.db";
+    sqlite3 *db = banco_abrir(caminho);
+    if (!db)
+        return 1;
+
     CampoMinado jogo;
     jogo.perdeu = false;
     jogo.ganhou = false;
@@ -237,6 +251,8 @@ int main(void) {
     jogo.contador_casas = CONTADOR_CAMPO;
     jogo.inicio = -1;
     jogo.segundos = 0;
+
+    bool tempo_salvo = false;
 
     gerar_mapa(&jogo);
 
@@ -266,31 +282,35 @@ int main(void) {
             }
 
             int x = mousePosition.x;
-            int y = mousePosition.y - PASSO_ALTURA;
-            int coluna = x / PASSO;
-            int linha = y / PASSO;
+            int y = mousePosition.y;
 
-            if (jogo.campo[linha][coluna] == 9 && jogo.mascara[linha][coluna] != '#') {
-                jogo.mascara[linha][coluna] = jogo.campo[linha][coluna]+'0';
-                jogo.perdeu = true;
-            } else if (jogo.mascara[linha][coluna] == '#') {
-                ;
-            } else {
-                jogo.contador_casas = CONTADOR_CAMPO;
-                abrir_mapa(&jogo, linha, coluna);
-
-                for (int linha = 0; linha < ROW; linha++) {
-                    for (int coluna = 0; coluna < COL; coluna++) {
-                        if (jogo.mascara[linha][coluna] != '*' && jogo.mascara[linha][coluna] != '#' ) {
-                            jogo.contador_casas -= 1;
+            if (y > PASSO_ALTURA) {
+                int y = mousePosition.y - PASSO_ALTURA;
+                int coluna = x / PASSO;
+                int linha = y / PASSO;
+    
+                if (jogo.campo[linha][coluna] == 9 && jogo.mascara[linha][coluna] != '#') {
+                    jogo.mascara[linha][coluna] = jogo.campo[linha][coluna]+'0';
+                    jogo.perdeu = true;
+                } else if (jogo.mascara[linha][coluna] == '#') {
+                    ;
+                } else {
+                    jogo.contador_casas = CONTADOR_CAMPO;
+                    abrir_mapa(&jogo, linha, coluna);
+    
+                    for (int linha = 0; linha < ROW; linha++) {
+                        for (int coluna = 0; coluna < COL; coluna++) {
+                            if (jogo.mascara[linha][coluna] != '*' && jogo.mascara[linha][coluna] != '#' ) {
+                                jogo.contador_casas -= 1;
+                            }
                         }
                     }
-                }
-                
-                if (jogo.contador_casas == MINAS_MAX) {
-                    jogo.ganhou = true;
-                }
-            }           
+                    
+                    if (jogo.contador_casas == MINAS_MAX) {
+                        jogo.ganhou = true;
+                    }
+                }           
+            }
         }
 
         // COLOCAR "BANDEIRA" ONDE ACHAR QUE É UMA MINA
@@ -328,6 +348,8 @@ int main(void) {
             jogo.inicio = -1;
             jogo.segundos = 0;
 
+            tempo_salvo = false;
+
             gerar_mapa(&jogo);
         }
 
@@ -347,10 +369,17 @@ int main(void) {
                 draw_final("YOU WIN", GREEN, &jogo);
             }
 
+            if ((jogo.ganhou || jogo.perdeu) && !tempo_salvo) {
+                if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1)
+                    printf("ERRO - Nao inseriu no banco\n");
+                tempo_salvo = true;
+            }
+
         EndDrawing();
     }
     
     CloseWindow();
-        
+    
+    banco_fechar(db);
     return 0;
 }

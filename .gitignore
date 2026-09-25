@@ -1,0 +1,8 @@
+# Arquivos compilados
+*.o
+*.exe
+
+# Bancos de dados gerados pelo jogo
+*.db
+
+\.vscode

@@ -1,6 +1,6 @@
 # Campo Minado
 
-Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado.
+Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida o tabuleiro é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado e o tempo é salvo em um banco de dados [SQLite](https://www.sqlite.org/).
 
 ## Como jogar
 
@@ -15,6 +15,39 @@ Cada número indica quantas minas existem nas oito células ao redor. A partida 
 
 O cronômetro começa no primeiro clique esquerdo, para quando a partida termina e vai até 999 segundos, como no clássico.
 
+## Tempos salvos
+
+Ao fim de cada partida, vencida ou perdida, o jogo grava no arquivo `tempos.db` o tempo em segundos, o resultado e a data e hora. O arquivo é criado automaticamente na primeira execução, na pasta de onde o jogo foi aberto, e não vai para o repositório: cada jogador tem o seu.
+
+**Por enquanto, o jogo só salva os tempos.** A opção de visualizar os tempos salvos dentro do jogo virá em uma próxima versão. Até lá, dá para consultar o arquivo com qualquer programa que abra bancos SQLite, como o [DB Browser for SQLite](https://sqlitebrowser.org/).
+
+A tabela `tempos` tem esta estrutura:
+
+| Coluna | Tipo | Conteúdo |
+| --- | --- | --- |
+| `id` | `INTEGER` | Identificador da partida, gerado automaticamente |
+| `tempo` | `INTEGER` | Duração da partida em segundos |
+| `concluido` | `INTEGER` | `1` para vitória, `0` para derrota |
+| `data` | `TEXT` | Data e hora do fim da partida, no horário local |
+
+## Estrutura do projeto
+
+```
+Campo-Minado-C/
+├── lib/
+│   └── sqlite3/
+│       ├── sqlite3.c   # SQLite (amalgamation), incluído no repositório
+│       └── sqlite3.h
+├── src/
+│   ├── main.c          # jogo: lógica, desenho e game loop
+│   ├── banco.c         # funções de acesso ao banco de dados
+│   └── banco.h         # declarações das funções do banco
+├── .gitignore
+└── README.md
+```
+
+O código do jogo fica em `src/`, e as bibliotecas de terceiros, em `lib/`. O SQLite está incluído no repositório na forma de *amalgamation*, um único arquivo `.c` com a biblioteca inteira, então não é preciso instalá-lo. A versão usada aparece no início do `lib/sqlite3/sqlite3.h`, em `SQLITE_VERSION`.
+
 ## Requisitos
 
 O projeto foi desenvolvido e testado no Windows. Para compilar, são necessários o GCC (MinGW-w64, aqui pelo w64devkit) e a raylib. O instalador oficial da raylib para Windows já traz os dois.
@@ -27,35 +60,47 @@ O projeto foi desenvolvido e testado no Windows. Para compilar, são necessário
 
 ## Compilar e executar
 
-Na pasta do projeto, rode:
+A compilação tem duas etapas. Primeiro, compile o SQLite uma única vez:
 
 ```shell
-gcc campo-minado.c -o campo-minado.exe -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
+gcc -c lib/sqlite3/sqlite3.c -o lib/sqlite3/sqlite3.o -O2
 ```
+
+Isso leva alguns segundos, porque o `sqlite3.c` é grande. O resultado é o `sqlite3.o`, um arquivo objeto com a biblioteca já compilada. Só é preciso repetir essa etapa se o SQLite for atualizado ou se o `.o` for apagado. O `.o` não vai para o repositório, então quem clonar o projeto precisa rodar essa etapa uma vez.
+
+Depois, compile o jogo. Os dois comandos devem ser rodados na raiz do projeto, porque os caminhos são relativos a ela:
+
+```shell
+gcc src/main.c src/banco.c lib/sqlite3/sqlite3.o -o campo-minado.exe -Ilib/sqlite3 -IC:/raylib/raylib/src -LC:/raylib/raylib/src -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
+```
+
+Essa é a etapa que se repete a cada alteração no código. Ela é rápida porque só compila os arquivos do jogo e aproveita o SQLite já compilado.
 
 Depois é só abrir o `campo-minado.exe` gerado, pelo terminal ou com dois cliques. Feche o jogo antes de compilar de novo: no Windows, um executável aberto não pode ser sobrescrito, e a compilação falha.
 
 O que cada parte do comando faz:
 
-- `-I` e `-L` apontam para os headers e a biblioteca da raylib. Se ela estiver instalada em outro lugar, ajuste esses caminhos.
+- `src/main.c`, `src/banco.c` e `lib/sqlite3/sqlite3.o` são compilados e juntados em um único executável, o `campo-minado.exe`, criado na raiz do projeto.
+- `-Ilib/sqlite3` indica onde está o `sqlite3.h`.
+- `-I` e `-L` com `C:/raylib/raylib/src` apontam para os headers e a biblioteca da raylib. Se ela estiver instalada em outro lugar, ajuste esses caminhos.
 - `-lraylib` liga o programa à raylib, e `-lopengl32 -lgdi32 -lwinmm` são bibliotecas do Windows que ela usa.
-- `-mwindows` abre o jogo sem a janela do console.
+- `-mwindows` abre o jogo sem a janela do console. Como as mensagens de erro do banco são impressas no console, remova essa opção quando precisar investigar um problema.
 
 ### Linux e macOS (não testado)
 
-O código usa só a raylib e a biblioteca padrão do C, então deve compilar em outros sistemas. Instale a raylib seguindo a [wiki oficial](https://github.com/raysan5/raylib/wiki) (no macOS, `brew install raylib pkg-config`) e compile sem as opções do Windows:
+O código usa só a raylib, o SQLite incluído e a biblioteca padrão do C, então deve compilar em outros sistemas. Instale a raylib seguindo a [wiki oficial](https://github.com/raysan5/raylib/wiki) (no macOS, `brew install raylib pkg-config`), compile o SQLite com o mesmo comando da primeira etapa e depois compile o jogo sem as opções do Windows:
 
 ```shell
 # Linux
-gcc campo-minado.c -o campo-minado -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+gcc src/main.c src/banco.c lib/sqlite3/sqlite3.o -o campo-minado -Ilib/sqlite3 -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
 # macOS
-gcc campo-minado.c -o campo-minado $(pkg-config --cflags --libs raylib)
+gcc src/main.c src/banco.c lib/sqlite3/sqlite3.o -o campo-minado -Ilib/sqlite3 $(pkg-config --cflags --libs raylib)
 ```
 
 ## Configurar a dificuldade
 
-A dificuldade é definida pelos `#define` no início do `campo-minado.c`: `COL` é o número de colunas (a largura do tabuleiro), `ROW` é o número de linhas (a altura) e `MINAS_MAX` é a quantidade de minas. Para trocar, altere os valores conforme a tabela e compile de novo. O padrão é o Normal.
+A dificuldade é definida pelos `#define` no início do `src/main.c`: `COL` é o número de colunas (a largura do tabuleiro), `ROW` é o número de linhas (a altura) e `MINAS_MAX` é a quantidade de minas. Para trocar, altere os valores conforme a tabela e compile de novo. O padrão é o Normal.
 
 | `#define` | Fácil | Normal | Especialista |
 | --- | --- | --- | --- |
@@ -84,16 +129,25 @@ As matrizes seguem a convenção `campo[linha][coluna]`. A linha anda na vertica
 
 O cronômetro usa o `GetTime()` da raylib, que devolve os segundos desde a abertura da janela. No primeiro clique esquerdo, esse valor é guardado em `inicio`; antes disso, `inicio` vale `-1`, que indica que o tempo ainda não começou. A cada quadro, enquanto a partida está em andamento, `segundos` recebe a diferença entre o tempo atual e `inicio`, limitada a 999. Como o cálculo só acontece durante a partida, o tempo congela sozinho ao ganhar ou perder, e o ENTER volta os dois campos ao estado inicial.
 
+### Banco de dados
+
+O acesso ao banco fica isolado no módulo `banco.c`, e o `main.c` só conhece as funções declaradas no `banco.h`, sem chamar o SQLite diretamente. A conexão é aberta uma vez no início do `main`, antes da janela, e fechada no final, depois do `CloseWindow()`.
+
+Para que cada partida seja gravada uma única vez, o `main` usa a variável `tempo_salvo`. Quando a partida termina e ela ainda é `false`, o tempo é inserido e ela passa a ser `true`. O ENTER volta a variável para `false`, liberando o salvamento da próxima partida. Sem esse controle, o game loop tentaria salvar o mesmo tempo a cada quadro.
+
 ### Funções
 
-| Função | O que faz |
-| --- | --- |
-| `gerar_mapa` | Zera o tabuleiro, fecha todas as células, sorteia as minas e calcula os números |
-| `contar_minas` | Para cada mina, incrementa o número das células vizinhas |
-| `abrir_mapa` | Abre uma célula e, se ela não tiver minas ao redor, abre as vizinhas recursivamente, sem passar por bandeiras |
-| `draw_superior` | Desenha o contador de bandeiras e o cronômetro no topo da tela |
-| `draw_mapa` | Desenha o tabuleiro, tanto durante a partida quanto revelado na tela final |
-| `draw_final` | Desenha a mensagem de vitória ou derrota junto com o tabuleiro revelado |
-| `fontsize` | Calcula o tamanho da fonte proporcional à largura da janela |
+| Função | Arquivo | O que faz |
+| --- | --- | --- |
+| `gerar_mapa` | `main.c` | Zera o tabuleiro, fecha todas as células, sorteia as minas e calcula os números |
+| `contar_minas` | `main.c` | Para cada mina, incrementa o número das células vizinhas |
+| `abrir_mapa` | `main.c` | Abre uma célula e, se ela não tiver minas ao redor, abre as vizinhas recursivamente, sem passar por bandeiras |
+| `draw_superior` | `main.c` | Desenha o contador de bandeiras e o cronômetro no topo da tela |
+| `draw_mapa` | `main.c` | Desenha o tabuleiro, tanto durante a partida quanto revelado na tela final |
+| `draw_final` | `main.c` | Desenha a mensagem de vitória ou derrota junto com o tabuleiro revelado |
+| `fontsize` | `main.c` | Calcula o tamanho da fonte proporcional à largura da janela |
+| `banco_abrir` | `banco.c` | Abre ou cria o `tempos.db` e cria a tabela `tempos` se ela não existir. Retorna `NULL` em caso de erro |
+| `inserir_tempo` | `banco.c` | Grava o tempo e o resultado de uma partida. Retorna o `id` da linha criada, ou `-1` em caso de erro |
+| `banco_fechar` | `banco.c` | Fecha a conexão com o banco |
 
-O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo e redesenha a tela.
+O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo, salva o tempo quando a partida termina e redesenha a tela.
