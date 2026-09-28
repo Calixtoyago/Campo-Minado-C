@@ -49,7 +49,7 @@ sqlite3_int64 inserir_tempo(sqlite3 *db, int segundos, int concluido) {
 
 int buscar_tempos(sqlite3 *db, Registro *lista) {
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT tempo, data "
+    const char *sql = "SELECT tempo, data, concluido "
                       "FROM tempos "
                       "WHERE concluido = 1 "
                       "ORDER BY tempo ASC "

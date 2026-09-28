@@ -4,13 +4,6 @@
 #include "raylib.h"
 #include "banco.h"
 
-/* 
-    JOGO           FACIL      NORMAL     ESPECIALISTA
-     COL             09         16            30
-     ROW             09         16            16
-   MINAS_MAX         10         40            99
-*/
-
 /*
 x da interface é a coluna da matriz
 y da interface é a linha da matriz
@@ -46,7 +39,7 @@ typedef struct campoMinado{
     int segundos;
 } CampoMinado;
 
-void contar_minas(int campo[16][16]);
+void contar_minas(int campo[ROW][COL]);
 void gerar_mapa(CampoMinado *jogo);
 void abrir_mapa(CampoMinado *jogo, int linha, int coluna);
 void draw_superior(CampoMinado *jogo);
@@ -224,18 +217,34 @@ int fontsize(char *string, float proporcao) {
 
 void draw_final(char *s, Color color, CampoMinado *jogo) {
     int fontsize_gameOver = fontsize("GAME OVER", 0.5);
-    int fontisize_pressEnter = fontsize("Press ENTER to play again", 0.75);
+    int fontisize_pressEnter = fontsize("Press ENTER to continue", 0.75);
 
     int largura_texto_gameOver = MeasureText(s, fontsize_gameOver);
     int x_gameOver = (SCREEN_WIDTH - largura_texto_gameOver) / 2;
 
-    int largura_texto_pressEnter = MeasureText("Press ENTER to play again", fontisize_pressEnter);
+    int largura_texto_pressEnter = MeasureText("Press ENTER to continue", fontisize_pressEnter);
     int x_pressEnter = (SCREEN_WIDTH - largura_texto_pressEnter) / 2;
 
     DrawText(s, x_gameOver, 14, fontsize_gameOver, color);
-    DrawText("Press ENTER to play again", x_pressEnter, 70, fontisize_pressEnter, ORANGE);
+    DrawText("Press ENTER to continue", x_pressEnter, 70, fontisize_pressEnter, ORANGE);
 
     draw_mapa(jogo);
+}
+
+void draw_ranking(Registro *ranking, int total, Registro *ultimo) {
+    char texto[64];
+
+    DrawText("TOP 10", 20, 20, 40, ORANGE);
+
+    for (int i = 0; i < total; i++) {
+        snprintf(texto, sizeof(texto), "%2d. %3ds  %s", i + 1, ranking[i].tempo, ranking[i].data);
+        DrawText(texto, 20, 80 + i * 30, 24, WHITE);
+    }
+
+    snprintf(texto, sizeof(texto), "Partida atual: %ds", ultimo->tempo);
+    DrawText(texto, 20, 400, 28, GREEN);
+
+    DrawText("Press ENTER to play again", 20, SCREEN_HEIGHT - 50, 24, ORANGE);
 }
 
 int main(void) {
@@ -244,9 +253,9 @@ int main(void) {
     if (!db)
         return 1;
 
-    Registro ultimo;
+    int total = 0;
+    Registro ultimo = {0};
     Registro ranking[10];
-    int total;
 
     CampoMinado jogo;
     jogo.perdeu = false;
@@ -257,6 +266,7 @@ int main(void) {
     jogo.segundos = 0;
 
     bool tempo_salvo = false;
+    bool tela_ranking = false;
 
     gerar_mapa(&jogo);
 
@@ -346,15 +356,32 @@ int main(void) {
 
         // REINICIAR O JOGO AO PRESSIONAR ENTER UMA VEZ
         if (IsKeyPressed(KEY_ENTER) && (jogo.ganhou == true || jogo.perdeu == true)) {
-            jogo.ganhou = false;
-            jogo.perdeu = false;
-            jogo.contador_bandeiras = MINAS_MAX;
-            jogo.inicio = -1;
-            jogo.segundos = 0;
+            
+            if (tela_ranking) {
+                tela_ranking = false;
+                jogo.ganhou = false;
+                jogo.perdeu = false;
+                jogo.contador_bandeiras = MINAS_MAX;
+                jogo.inicio = -1;
+                jogo.segundos = 0;
+                
+                tempo_salvo = false;
+                gerar_mapa(&jogo);
+            } else {
+                tela_ranking = true;
+            }
 
-            tempo_salvo = false;
+            // gerar_mapa(&jogo);
+        }
 
-            gerar_mapa(&jogo);
+        if ((jogo.ganhou || jogo.perdeu) && !tempo_salvo) {
+            if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1) {
+                printf("ERRO - Nao inseriu no banco\n");
+            }
+            tempo_salvo = true;
+
+            total = buscar_tempos(db, ranking);
+            mostrar_ultimo_tempo(db, &ultimo);
         }
 
         BeginDrawing();
@@ -362,33 +389,16 @@ int main(void) {
             ClearBackground(BLACK);
             
             // CRIAR O CAMPO MINADO NA INTERFACE
-            if (jogo.perdeu == false && jogo.ganhou == false) {
+            if (tela_ranking) {
+                draw_ranking(ranking, total, &ultimo);
+            } else if (jogo.perdeu == false && jogo.ganhou == false) {
                 draw_superior(&jogo);
-
                 draw_mapa(&jogo);
-
-            } else if (jogo.perdeu == true) {
+            } else if (jogo.perdeu) {
                 draw_final("GAME OVER", RED, &jogo);
-            } else if (jogo.ganhou == true) {
+            } else {
                 draw_final("YOU WIN", GREEN, &jogo);
             }
-
-            if ((jogo.ganhou || jogo.perdeu) && !tempo_salvo) {
-                if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1)
-                    printf("ERRO - Nao inseriu no banco\n");
-                tempo_salvo = true;
-
-                total = buscar_tempos(db, ranking);
-                printf("--- TOP 10 tempos ---\n");
-                for (int i = 0; i < total; i++){
-                    printf("%d. %ds - %s\n", i + 1, ranking[i].tempo, ranking[i].data);
-                }
-
-                if (mostrar_ultimo_tempo(db, &ultimo) == 1)
-                    printf("\nJogo atual: %ds em %s\n", ultimo.tempo, ultimo.data);
-                else
-                    printf("Não foi possível buscar o jogo atual\n");
-                }
 
         EndDrawing();
     }
