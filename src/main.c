@@ -270,9 +270,6 @@ int main(void) {
 
     gerar_mapa(&jogo);
 
-    Color cor_quadrado;
-    Color cor_numero;
-
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Campo Minado");
     
     SetTargetFPS(30);
