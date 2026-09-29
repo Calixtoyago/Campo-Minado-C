@@ -77,39 +77,3 @@ int buscar_tempos(sqlite3 *db, Registro *lista) {
     sqlite3_finalize(stmt);
     return n;
 }
-
-int mostrar_ultimo_tempo(sqlite3 *db, Registro *ultimo) {
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT  tempo, data "
-                      "FROM tempos "
-                      "WHERE id == ? "
-                      "LIMIT 1;";
-
-    sqlite3_int64 id = sqlite3_last_insert_rowid(db);
-    
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        fprintf(stderr, "Erro: %s\n", sqlite3_errmsg(db));
-        return -1;
-    }
-    
-    sqlite3_bind_int(stmt, 1, id);
-
-    int resultado;
-    int rc = sqlite3_step(stmt);
-
-    if (rc == SQLITE_ROW) {
-        ultimo->tempo = sqlite3_column_int(stmt, 0);
-        const unsigned char *data = sqlite3_column_text(stmt, 1);
-        snprintf(ultimo->data, sizeof(ultimo->data), "%s",
-                 data ? (const char *)data : "");
-        resultado = 1;
-    } else if (rc == SQLITE_DONE) {
-        resultado = 0;
-    } else {
-        fprintf(stderr, "Erro: %s\n", sqlite3_errmsg(db));
-        resultado = -1;
-    }
-
-    sqlite3_finalize(stmt);
-    return resultado;
-}

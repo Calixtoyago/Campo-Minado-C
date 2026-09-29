@@ -1,6 +1,6 @@
 # Campo Minado
 
-Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida, o tabuleiro de 16x16 com 40 minas é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado, o tempo é salvo em um banco de dados [SQLite](https://www.sqlite.org/) e o jogo mostra uma tela com o ranking das vitórias mais rápidas.
+Implementação do clássico Campo Minado em C, com interface gráfica feita com a biblioteca [raylib](https://www.raylib.com/). A cada partida, o tabuleiro de 16x16 com 40 minas é gerado aleatoriamente, as áreas sem minas por perto se abrem em cascata e o jogador pode marcar bandeiras. No topo da tela ficam o contador de bandeiras e o cronômetro. Ao fim da partida, o tabuleiro inteiro é revelado, o tempo das vitórias é salvo em um banco de dados [SQLite](https://www.sqlite.org/) e o jogo mostra uma tela com o ranking das vitórias mais rápidas.
 
 ## Como jogar
 
@@ -20,16 +20,16 @@ O tabuleiro tem tamanho fixo de 16 colunas por 16 linhas, com 40 minas, o equiva
 
 ## Ranking e tempos salvos
 
-Ao fim de cada partida, vencida ou perdida, o jogo grava no arquivo `tempos.db` o tempo em segundos, o resultado e a data e hora. O arquivo é criado automaticamente na primeira execução, na pasta de onde o jogo foi aberto, e não vai para o repositório: cada jogador tem o seu.
+Ao fim de cada partida **vencida**, o jogo grava no arquivo `tempos.db` o tempo em segundos e a data e hora. As derrotas não são salvas, já que o banco existe para alimentar o ranking. O arquivo é criado automaticamente na primeira execução, na pasta de onde o jogo foi aberto, e não vai para o repositório: cada jogador tem o seu.
 
 Na tela final da partida, o ENTER abre a tela do ranking, que mostra:
 
 - o **top 10** dos menores tempos entre as partidas vencidas, com a posição, o tempo e a data de cada uma;
-- o **tempo da partida que acabou de terminar**, vencida ou perdida.
+- o **tempo da partida que acabou de terminar**, vencida ou perdida. Esse valor vem direto do cronômetro do jogo, e não do banco, por isso também aparece nas derrotas.
 
 Um novo ENTER, na tela do ranking, começa a próxima partida.
 
-Para consultar o histórico completo, incluindo as derrotas, dá para abrir o `tempos.db` com qualquer programa que leia bancos SQLite, como o [DB Browser for SQLite](https://sqlitebrowser.org/).
+Para consultar todas as vitórias salvas, além das 10 do ranking, dá para abrir o `tempos.db` com qualquer programa que leia bancos SQLite, como o [DB Browser for SQLite](https://sqlitebrowser.org/).
 
 A tabela `tempos` tem esta estrutura:
 
@@ -37,7 +37,7 @@ A tabela `tempos` tem esta estrutura:
 | --- | --- | --- |
 | `id` | `INTEGER` | Identificador da partida, gerado automaticamente |
 | `tempo` | `INTEGER` | Duração da partida em segundos |
-| `concluido` | `INTEGER` | `1` para vitória, `0` para derrota |
+| `concluido` | `INTEGER` | `1` para vitória. Como só as vitórias são salvas, os registros novos sempre têm `1`; o valor `0` só aparece em bancos criados por versões anteriores, que também salvavam as derrotas |
 | `data` | `TEXT` | Data e hora do fim da partida, no horário local |
 
 ## Estrutura do projeto
@@ -143,9 +143,9 @@ O ENTER só funciona depois que a partida termina. Na tela de fim de partida, el
 
 O acesso ao banco fica isolado no módulo `banco.c`, e o `main.c` só conhece as funções declaradas no `banco.h`, sem chamar o SQLite diretamente. A conexão é aberta uma vez no início do `main`, antes da janela, e fechada no final, depois do `CloseWindow()`.
 
-As consultas guardam os resultados na struct `Registro`, declarada no `banco.h`, com o tempo e a data de uma partida. O ranking é um array `Registro ranking[10]`, e a partida atual é um único `Registro ultimo`. Os dois ficam declarados no `main`, e as funções de busca recebem o endereço deles para preenchê-los.
+A busca guarda os resultados na struct `Registro`, declarada no `banco.h`, com o tempo e a data de uma partida. O ranking é um array `Registro ranking[10]`, declarado no `main`, e a `buscar_tempos` recebe o endereço dele para preenchê-lo. A consulta mantém o filtro `WHERE concluido = 1` para ignorar as derrotas de bancos criados por versões anteriores.
 
-A lógica do banco e o desenho ficam separados. Quando a partida termina, um bloco que roda **uma única vez** salva o tempo, busca o ranking e a partida atual e guarda os resultados nessas variáveis. A tela do ranking é desenhada a cada quadro a partir delas, sem voltar ao banco. Para que esse bloco rode uma vez só, o `main` usa a variável `tempo_salvo`: quando a partida termina e ela ainda é `false`, o bloco executa e ela passa a ser `true`. O reinício da partida volta a variável para `false`. Sem esse controle, o game loop tentaria salvar o mesmo tempo e consultar o banco a cada quadro.
+A lógica do banco e o desenho ficam separados. Quando a partida termina, um bloco que roda **uma única vez** salva o tempo, se a partida foi vencida, e busca o ranking atualizado, guardando o resultado no array. A tela do ranking é desenhada a cada quadro a partir dele, sem voltar ao banco, e o tempo da partida atual vem do próprio estado do jogo. Para que esse bloco rode uma vez só, o `main` usa a variável `tempo_salvo`: quando a partida termina e ela ainda é `false`, o bloco executa e ela passa a ser `true`. O reinício da partida volta a variável para `false`. Sem esse controle, o game loop tentaria salvar o mesmo tempo e consultar o banco a cada quadro.
 
 ### Funções
 
@@ -157,12 +157,11 @@ A lógica do banco e o desenho ficam separados. Quando a partida termina, um blo
 | `draw_superior` | `main.c` | Desenha o contador de bandeiras e o cronômetro no topo da tela |
 | `draw_mapa` | `main.c` | Desenha o tabuleiro, tanto durante a partida quanto revelado na tela final |
 | `draw_final` | `main.c` | Desenha a mensagem de vitória ou derrota junto com o tabuleiro revelado |
-| `draw_ranking` | `main.c` | Desenha a tela do ranking a partir dos registros já buscados, sem acessar o banco |
+| `draw_ranking` | `main.c` | Desenha a tela do ranking a partir dos registros já buscados, sem acessar o banco, e o tempo da partida atual a partir do estado do jogo |
 | `fontsize` | `main.c` | Calcula o tamanho da fonte proporcional à largura da janela |
 | `banco_abrir` | `banco.c` | Abre ou cria o `tempos.db` e cria a tabela `tempos` se ela não existir. Retorna `NULL` em caso de erro |
-| `inserir_tempo` | `banco.c` | Grava o tempo e o resultado de uma partida. Retorna o `id` da linha criada, ou `-1` em caso de erro |
+| `inserir_tempo` | `banco.c` | Grava o tempo de uma partida vencida. Retorna o `id` da linha criada, ou `-1` em caso de erro |
 | `buscar_tempos` | `banco.c` | Preenche o array recebido com as 10 vitórias mais rápidas. Retorna quantas encontrou, ou `-1` em caso de erro |
-| `mostrar_ultimo_tempo` | `banco.c` | Preenche o `Registro` recebido com a última partida salva. Retorna `1` se encontrou, `0` se não há partidas salvas, ou `-1` em caso de erro |
 | `banco_fechar` | `banco.c` | Fecha a conexão com o banco |
 
-O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo, salva o tempo e busca o ranking quando a partida termina e desenha a tela atual.
+O `main` segue o padrão de game loop da raylib: a cada quadro, atualiza o cronômetro, lê o mouse e o teclado, atualiza o estado do jogo, salva o tempo das vitórias e busca o ranking quando a partida termina e desenha a tela atual.

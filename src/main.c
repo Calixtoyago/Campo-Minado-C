@@ -231,7 +231,7 @@ void draw_final(char *s, Color color, CampoMinado *jogo) {
     draw_mapa(jogo);
 }
 
-void draw_ranking(Registro *ranking, int total, Registro *ultimo) {
+void draw_ranking(Registro *ranking, int total, CampoMinado *jogo) {
     char texto[64];
 
     DrawText("TOP 10", 20, 20, 40, ORANGE);
@@ -241,7 +241,7 @@ void draw_ranking(Registro *ranking, int total, Registro *ultimo) {
         DrawText(texto, 20, 80 + i * 30, 24, WHITE);
     }
 
-    snprintf(texto, sizeof(texto), "Partida atual: %ds", ultimo->tempo);
+    snprintf(texto, sizeof(texto), "Partida atual: %ds", jogo->segundos);
     DrawText(texto, 20, 400, 28, GREEN);
 
     DrawText("Press ENTER to play again", 20, SCREEN_HEIGHT - 50, 24, ORANGE);
@@ -254,7 +254,6 @@ int main(void) {
         return 1;
 
     int total = 0;
-    Registro ultimo = {0};
     Registro ranking[10];
 
     CampoMinado jogo;
@@ -333,7 +332,6 @@ int main(void) {
                 y = y - PASSO_ALTURA;
                 int coluna = x / PASSO;
                 int linha = y / PASSO;
-                // printf("Bandeira - (%d, %d) - [%d][%d]\n", x, y, i, j);
     
                 if (jogo.mascara[linha][coluna] == '*') {
                     jogo.mascara[linha][coluna] = '#';
@@ -372,13 +370,14 @@ int main(void) {
         }
 
         if ((jogo.ganhou || jogo.perdeu) && !tempo_salvo) {
-            if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1) {
-                printf("ERRO - Nao inseriu no banco\n");
+            if (jogo.ganhou) {
+                if (inserir_tempo(db, jogo.segundos, jogo.ganhou) == -1) {
+                    printf("ERRO - Nao inseriu no banco\n");
+                }
             }
             tempo_salvo = true;
 
             total = buscar_tempos(db, ranking);
-            mostrar_ultimo_tempo(db, &ultimo);
         }
 
         BeginDrawing();
@@ -387,7 +386,7 @@ int main(void) {
             
             // CRIAR O CAMPO MINADO NA INTERFACE
             if (tela_ranking) {
-                draw_ranking(ranking, total, &ultimo);
+                draw_ranking(ranking, total, &jogo);
             } else if (jogo.perdeu == false && jogo.ganhou == false) {
                 draw_superior(&jogo);
                 draw_mapa(&jogo);
